@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>รายงานการบำรุงรักษาเครื่องกำเนิดไฟฟ้า</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+
+<style>
+.print-title {
+  display: none;
+}
+
+.summary-filter .g {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.summary-filter label {
+  min-width: 180px;
+}
+
+.swal2-popup {
+  font-family: "Sarabun", sans-serif;
+}
+
+.qr-card {
+  text-align: center;
+  margin-top: 0;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-family: "Sarabun", sans-serif;
+    font-size: 9pt;
+  }
+
+  #app > header,
+  .screen-only,
+  .bar,
+  .acts,
+  .prog,
+  .legend,
+  button,
+  select {
+    display: none !important;
+  }
+
+  #app,
+  main.wrap,
+  .summary-page,
+  .summary-table,
+  .tw {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .print-title {
+    display: block !important;
+    text-align: center;
+    margin: 0 0 12px;
+    color: #000 !important;
+  }
+
+  .print-title h2 {
+    font-size: 16pt;
+    margin: 0 0 5px;
+  }
+
+  .print-title h3 {
+    font-size: 12pt;
+    margin: 0 0 5px;
+  }
+
+  .print-title p {
+    font-size: 9pt;
+    margin: 0 0 3px;
+  }
+
+  .summary-table table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed;
+    font-size: 8pt;
+  }
+
+  .summary-table th,
+  .summary-table td {
+    border: 1px solid #000 !important;
+    padding: 5px !important;
+    color: #000 !important;
+    background: #fff !important;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+
+  .summary-table th {
+    text-align: center;
+    font-weight: bold;
+  }
+
+  .summary-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .summary-table td div {
+    margin-bottom: 3px;
+  }
+
+  .summary-table .center {
+    text-align: center;
+  }
+
+  .summary-table .preserve-lines {
+    white-space: pre-line;
+  }
+
+  .summary-table .maintenance-item {
+    margin-bottom: 3px;
+  }
+
+  .summary-table .maintenance-heading {
+    margin-top: 6px;
+    margin-bottom: 3px;
+  }
+
+  .summary-table .summary-note {
+    margin-bottom: 5px;
+  }
+
+  /* พิมพ์หน้า QR Code (4 เครื่อง) */
+  .qr-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .qr-card {
+    border: 1px solid #000 !important;
+    background: #fff !important;
+    color: #000 !important;
+    margin: 0 !important;
+    padding: 14px !important;
+    text-align: center;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .qr-card img {
+    width: 200px;
+    height: 200px;
+  }
+}
+</style>
+</head>
+
+<body>
+<div id="app" v-cloak>
+
+  <header>
+    <div class="wrap">
+      <h1>รายงานการบำรุงรักษาเครื่องกำเนิดไฟฟ้า</h1>
+      <p>ระบบวิศวกรรมประกอบอาคาร</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <!-- หน้ารายการรายงานที่บันทึกไว้ -->
+    <section v-if="view === 'home'">
+
+      <div class="bar">
+        <h2>รายงานที่บันทึกไว้</h2>
+        <button class="btn s" @click="view = 'qr'">
+          QR Code
+        </button>
+        <button class="btn s" @click="view = 'summary'">
+          ตารางสรุปงานบำรุงรักษา
+        </button>
+        <button class="btn" @click="startNew">
+          + รายงานใหม่
+        </button>
+      </div>
+
+      <div v-if="!sorted.length" class="card">
+        ยังไม่มีรายงานที่บันทึกไว้ กด “+ รายงานใหม่” เพื่อเริ่มกรอก
+      </div>
+
+      <div class="card row" v-for="r in sorted" :key="r.id">
+        <div class="grow">
+          <b>{{ kvaText(r).join(', ') }}</b>
+          <br>
+          <small>
+            แก้ไขล่าสุด {{ new Date(r.ts).toLocaleString('th-TH') }}
+          </small>
+        </div>
+
+        <button class="btn" @click="open(r.id)">
+          เปิดรายงาน
+        </button>
+
+        <button class="btn s" @click="confirmRemove(r)">
+          ลบ
+        </button>
+      </div>
+
+    </section>
+
+    <!-- หน้า QR Code ของเครื่องทั้ง 4 เครื่อง -->
+    <section v-else-if="view === 'qr'" class="qr-page">
+
+      <div class="bar">
+        <h2>QR Code เครื่องกำเนิดไฟฟ้า</h2>
+        <button class="btn s" @click="view = 'home'">
+          กลับ
+        </button>
+        <button class="btn" @click="print">
+          พิมพ์ QR Code
+        </button>
+      </div>
+
+      <div class="g big qr-grid">
+        <div class="card qr-card" v-for="(g, i) in gens" :key="i">
+          <b>เครื่องกำเนิดไฟฟ้าขนาด {{ g.kva }} KVA.</b>
+          <div style="margin:12px 0;">
+            <img
+              :src="qrSrc(i)"
+              alt="QR Code"
+              width="180"
+              height="180"
+              style="border:4px solid #fff;border-radius:4px;"
+            >
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- หน้าสร้างรายงานใหม่ -->
+    <section v-else-if="view === 'new'">
+
+      <div class="bar">
+        <h2>รายงานใหม่ เลือกเครื่องกำเนิดไฟฟ้า (เลือกได้มากกว่า 1 เครื่อง)</h2>
+        <button class="btn s" @click="view = 'home'">
+          ยกเลิก
+        </button>
+      </div>
+
+      <div class="g big">
+        <div
+          class="card pick"
+          v-for="(g, i) in gens"
+          :key="i"
+          :class="{ on: sel.includes(i) }"
+        >
+          <div @click="toggle(i)" style="cursor:pointer;">
+            <b>{{ sel.includes(i) ? '✓ ' : '' }}{{ g.name }}</b>
+            <br>
+            <small>
+              {{ g.eng }}<br>
+              {{ g.kva }} กิโลวีเอ · 3 เฟส {{ g.volt }} โวลท์
+              · เริ่มใช้งาน พ.ศ. {{ g.year }}
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <div class="acts">
+        <button
+          class="btn"
+          :disabled="!sel.length"
+          @click="create"
+        >
+          เริ่มรายงาน ({{ sel.length }} เครื่อง)
+        </button>
+      </div>
+
+    </section>
+
+    <!-- หน้าบันทึกรายงาน -->
+    <section v-else-if="view === 'form' && tempRep">
+
+      <div class="spec" v-for="i in tempRep.gens" :key="i">
+        <div>
+          <span>เครื่องยนต์ / รุ่น</span>
+          <b class="sm">{{ gens[i].eng }}</b>
+        </div>
+        <div>
+          <span>ขนาด</span>
+          <b>{{ gens[i].kva }} กิโลวีเอ</b>
+        </div>
+        <div>
+          <span>เลขครุภัณฑ์</span>
+          <b>{{ gens[i].asset || '-' }}</b>
+        </div>
+      </div>
+
+      <div class="prog">
+        <i><em :style="{ width: pct + '%' }"></em></i>
+        <small>
+          บันทึกแล้ว {{ done(tempRep) }} จาก {{ items.length }} รายการ
+        </small>
+      </div>
+
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>ลำดับที่</th>
+              <th>รายละเอียดการดำเนินการ</th>
+              <th>ระยะเวลา</th>
+              <th>หน่วยมาตรฐาน</th>
+              <th>บันทึกการทดสอบ</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr
+              v-for="(it, n) in items"
+              :key="n"
+              :class="{ done: tempRep.v[n] }"
+            >
+              <td class="n">{{ n + 1 }}</td>
+              <td>{{ it[0] }}</td>
+              <td>
+                <span class="tag" :class="'p-' + it[1]">
+                  {{ it[1] }}
+                </span>
+              </td>
+              <td>{{ it[2] || '/' }}</td>
+              <td>
+                <select
+                  v-model="tempRep.v[n]"
+                  :aria-label="'บันทึกการทดสอบ ข้อ ' + (n + 1)"
+                >
+                  <option v-for="o in statuses" :key="o" :value="o">
+                    {{ o || '-' }}
+                  </option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="legend">
+        N = Normal · AB = Abnormal · BD = Break Down · X = Don’t PM · STD = Standard / Finish
+        <br>
+        W = Week · M = Month · Q = Quarter · H = Half year · Y = Year
+      </p>
+
+      <div class="card">
+        <h3>วันที่ให้บริการ</h3>
+        <div class="g">
+          <label>
+            วันที่
+            <input type="date" v-model="tempRep.d">
+          </label>
+
+          <label>
+            เวลาเริ่ม
+            <input type="time" v-model="tempRep.t1">
+          </label>
+
+          <label>
+            เวลาสิ้นสุด
+            <input type="time" v-model="tempRep.t2">
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>บันทึกสรุป</h3>
+        <textarea v-model="tempRep.sum" aria-label="บันทึกสรุป"></textarea>
+
+        <h3 style="margin-top:12px">อะไหล่ที่ใช้</h3>
+        <textarea v-model="tempRep.parts" aria-label="อะไหล่ที่ใช้"></textarea>
+      </div>
+
+      <div class="card">
+        <h3>ผู้ปฏิบัติ</h3>
+        <div class="g">
+          <label v-for="k in ['o1', 'o2', 'o3']" :key="k">
+            ผู้ปฏิบัติ {{ k.slice(1) }}
+            <select v-model="tempRep[k]">
+              <option value="">เลือก -</option>
+              <option v-for="o in ops" :key="o">{{ o }}</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Customer’s Acceptance</h3>
+        <div class="g">
+          <label>
+            หน่วยงาน
+            <select v-model="tempRep.ca">
+              <option value="">เลือก -</option>
+              <option v-for="o in orgs" :key="o">{{ o }}</option>
+            </select>
+          </label>
+
+          <label>
+            ชื่อ
+            <input type="text" v-model="tempRep.cn">
+          </label>
+
+          <label>
+            วันที่
+            <input type="date" v-model="tempRep.cd">
+          </label>
+        </div>
+      </div>
+
+      <div class="acts">
+        <button class="btn" @click="save">
+          บันทึกรายงาน
+        </button>
+
+        <button class="btn s" @click="view = 'home'">
+          กลับไปรายการ
+        </button>
+
+        <button class="btn s" @click="print">
+          พิมพ์ / PDF
+        </button>
+
+        <button class="btn s" @click="resetData">
+          {{ resetArm ? 'กดอีกครั้งเพื่อยืนยันล้างข้อมูล' : 'ล้างข้อมูลในรายงานนี้' }}
+        </button>
+      </div>
+
+    </section>
+
+    <!-- ตารางสรุปงานบำรุงรักษา -->
+    <section v-else-if="view === 'summary'" class="summary-page">
+
+      <div class="bar screen-only">
+        <h2>ตารางสรุปงานบำรุงรักษา เครื่องกำเนิดไฟฟ้า</h2>
+        <button class="btn s" @click="view = 'home'">
+          กลับ
+        </button>
+      </div>
+
+      <!-- เลือกช่วงปีงบประมาณ -->
+      <div class="card screen-only summary-filter" style="margin-top:0">
+        <div class="g">
+
+          <label>
+            ปีงบประมาณตั้งแต่
+            <select v-model.number="fyFrom" style="width:auto;display:block">
+              <option v-for="y in fys" :key="y" :value="y">
+                {{ y }}
+              </option>
+            </select>
+          </label>
+
+          <label>
+            ปีงบประมาณถึง
+            <select v-model.number="fyTo" style="width:auto;display:block">
+              <option v-for="y in fys" :key="y" :value="y">
+                {{ y }}
+              </option>
+            </select>
+          </label>
+
+        </div>
+      </div>
+
+      <!-- หัวข้อสำหรับพิมพ์และบันทึก PDF -->
+      <div class="print-title">
+        <p>ตารางสรุปงานบำรุงรักษา เครื่องกำเนิดไฟฟ้า
+          ปีงบประมาณ {{ Math.min(fyFrom, fyTo) }}
+          - {{ Math.max(fyFrom, fyTo) }}
+        </p>
+      </div>
+
+      <!-- ตารางข้อมูล -->
+      <div v-if="rows.length" class="tw summary-table">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:16%">วันที่</th>
+              <th style="width:28%">เครื่องกำเนิดไฟฟ้า</th>
+              <th>รายการ</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr v-for="r in rows" :key="r.id">
+
+              <td>
+                {{ formatDate(r.d || r.ts) }}
+                <div v-if="r.t1 || r.t2">
+                  {{ r.t1 || '-' }} - {{ r.t2 || '-' }}
+                </div>
+              </td>
+
+              <td>
+                <div v-for="i in r.gens" :key="i" class="generator-name">
+                  <div>
+                    เครื่องกำเนิดไฟฟ้าขนาด {{ gens[i].kva }} KVA
+                  </div>
+                </div>
+              </td>
+
+              <td>
+                <div class="summary-note">
+                  <span v-if="r.sum" class="preserve-lines">{{ r.sum }}</span>
+                  <span v-else>-</span>
+                </div>
+              </td>
+
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else class="card screen-only">
+        ยังไม่มีรายงานที่บันทึกในช่วงปีงบประมาณนี้
+      </div>
+
+      <p class="legend screen-only" v-if="rows.length">
+        รวม {{ rows.length }} รายงาน
+        · ปีงบประมาณ {{ Math.min(fyFrom, fyTo) }}
+        ถึง {{ Math.max(fyFrom, fyTo) }}
+        · ปีงบประมาณคำนวณจากวันที่ให้บริการ โดยเริ่มวันที่ 1 ตุลาคม
+      </p>
+
+      <div class="acts screen-only">
+        <button class="btn s" @click="print">
+          พิมพ์ / PDF
+        </button>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.12.4/dist/sweetalert2.all.min.js"></script>
+
+<script>
+const KEY = 'genmaint-vue';
+
+Vue.createApp({
+  data() {
+    let saved = [];
+
+    try {
+      saved = JSON.parse(localStorage.getItem(KEY) || '[]');
+      if (!Array.isArray(saved)) saved = [];
+    } catch (e) {
+      saved = [];
+    }
+
+    return {
+      gens: [
+        {
+          name: 'DORMAN 6SETCA3',
+          eng: 'DORMAN Model 6SETCA3 (Stamford)',
+          kva: 625,
+          volt: 380,
+          year: 2537,
+          asset: '6115-001-0014-1'
+        },
+        {
+          name: 'Cummins KTA 719',
+          eng: 'Cummins Model KTA 719',
+          kva: 412,
+          volt: 380,
+          year: 2541,
+          asset: ''
+        },
+        {
+          name: 'ISUZU C200',
+          eng: 'ISUZU Model C200 (Thaigen)',
+          kva: 130,
+          volt: 380,
+          year: 2530,
+          asset: ''
+        },
+        {
+          name: 'PERKINS PLK3SD742',
+          eng: 'PERKINS Model PLK3SD742ONDM3EXAB-EU2-1600-16 (Leroy Somer)',
+          kva: 910,
+          volt: 400,
+          year: 2563,
+          asset: ''
+        }
+      ],
+
+      items: [
+        ['ทำความสะอาดทั่วไป, เป่าไส้กรองอากาศ', 'W', ''],
+        ['ตรวจระดับน้ำมันเชื้อเพลิง', 'W', 'ลิตร'],
+        ['ตรวจระดับน้ำมันหล่อลื่น', 'W', 'มาตรฐานเครื่อง'],
+        ['ตรวจระดับน้ำหล่อเย็น, ระดับน้ำกลั่น', 'W', ''],
+        ['ตรวจเครื่องชาร์จแบตเตอรี่', 'W', '24 โวลท์'],
+        ['ตรวจเช็คส่วนที่เคลื่อนที่และความผิดปกติของเสียง', 'W', ''],
+        ['บันทึกจำนวนเวลาที่ทำงาน', 'W', 'ชั่วโมง'],
+        ['เปลี่ยนถ่ายน้ำระบายความร้อน', 'M', ''],
+        ['แรงดันของน้ำระบายความร้อน', 'M', 'Psig.'],
+        ['อุณหภูมิของน้ำระบายความร้อน', 'M', '150-185 °F'],
+        ['ทดลองเดินเครื่องแบบจ่ายโหลด 30 นาที', 'M', ''],
+        ['ความเร็วรอบของเครื่องยนต์', 'Y', '1500 รอบ/นาที'],
+        ['อุณหภูมิของน้ำมันหล่อลื่น', 'Y', '185-200 °F'],
+        ['ตรวจเช็คการสั่นของเครื่องยนต์', 'Y', ''],
+        ['ทดลองเดินเครื่องแบบจ่ายโหลด 4 ชั่วโมง', 'Y', ''],
+        ['เปลี่ยนถ่ายไส้กรองน้ำมันหล่อลื่น', 'Y', ''],
+        ['เปลี่ยนถ่ายไส้กรองอากาศ', 'Y', ''],
+        ['เปลี่ยนถ่ายน้ำมันหล่อลื่น', 'Y', ''],
+        ['เปลี่ยนแบตเตอรี่', '2Y', ''],
+        ['เปลี่ยนสายพานต่างๆ', '2Y', '9-12 มม.']
+      ],
+
+      statuses: ['', 'N', 'AB', 'BD', 'X', 'STD'],
+      ops: ['ทดสอบ1', 'ทดสอบ2', 'ทดสอบ3'],
+      orgs: ['หน่วยงาน1', 'หน่วยงาน2', 'หน่วยงาน3'],
+
+      // รายการปีงบประมาณ พ.ศ.
+      fys: [2566, 2567, 2568, 2569, 2570],
+
+      reports: saved,
+      view: 'home',
+      sel: [],
+      curId: '',
+      tempRep: null,
+
+      // ค่าเริ่มต้นแสดงเฉพาะปีงบประมาณปัจจุบัน
+      fyFrom: 2570,
+      fyTo: 2570,
+
+      resetArm: false
+    };
+  },
+
+  mounted() {
+    const params = new URLSearchParams(window.location.search);
+    const genParam = params.get('gen');
+
+    if (genParam !== null) {
+      const idx = parseInt(genParam, 10);
+
+      if (!isNaN(idx) && this.gens[idx]) {
+        this.sel = [idx];
+        this.create();
+      }
+    }
+  },
+
+  computed: {
+    pct() {
+      return this.tempRep
+        ? this.done(this.tempRep) / this.items.length * 100
+        : 0;
+    },
+
+    sorted() {
+      return [...this.reports].sort((a, b) => b.ts - a.ts);
+    },
+
+    rows() {
+      // รองรับกรณีเลือกปีเริ่มต้นมากกว่าปีสิ้นสุด
+      const from = Math.min(Number(this.fyFrom), Number(this.fyTo));
+      const to = Math.max(Number(this.fyFrom), Number(this.fyTo));
+
+      return this.reports
+        .filter(r => {
+          const year = this.fyOf(r);
+          return year >= from && year <= to;
+        })
+        .sort((a, b) => {
+          return new Date(a.d || a.ts) - new Date(b.d || b.ts);
+        });
+    }
+  },
+
+  watch: {
+    reports: {
+      deep: true,
+      handler(v) {
+        try {
+          localStorage.setItem(KEY, JSON.stringify(v));
+        } catch (e) {
+          console.error('ไม่สามารถบันทึกข้อมูลได้', e);
+        }
+      }
+    }
+  },
+
+  methods: {
+    fmt(d) {
+      return d ? new Date(d).toLocaleDateString('th-TH') : '-';
+    },
+
+    formatDate(d) {
+      if (!d) return '-';
+
+      // แยกวันที่ YYYY-MM-DD เพื่อป้องกันวันที่คลาดเคลื่อนจาก timezone
+      let date;
+
+      if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        const parts = d.split('-').map(Number);
+        date = new Date(parts[0], parts[1] - 1, parts[2]);
+      } else {
+        date = new Date(d);
+      }
+
+      if (isNaN(date.getTime())) return '-';
+
+      return date.toLocaleDateString('th-TH', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    },
+
+    done(r) {
+      return r.v.filter(Boolean).length;
+    },
+
+    kvaText(r) {
+      return r.gens.map(i => {
+        return 'เครื่องกำเนิดไฟฟ้าขนาด ' + this.gens[i].kva + ' KVA';
+      });
+    },
+
+    // ปีงบประมาณเริ่ม 1 ตุลาคม
+    fyOf(r) {
+      const value = r.d || r.ts;
+      let date;
+
+      if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const parts = value.split('-').map(Number);
+        date = new Date(parts[0], parts[1] - 1, parts[2]);
+      } else {
+        date = new Date(value);
+      }
+
+      if (isNaN(date.getTime())) return 0;
+
+      return date.getFullYear() + 543 +
+        (date.getMonth() >= 9 ? 1 : 0);
+    },
+
+    startNew() {
+      this.sel = [];
+      this.view = 'new';
+    },
+
+    toggle(i) {
+      const p = this.sel.indexOf(i);
+
+      if (p < 0) {
+        this.sel.push(i);
+      } else {
+        this.sel.splice(p, 1);
+      }
+
+      this.sel.sort((a, b) => a - b);
+    },
+
+    create() {
+      if (!this.sel.length) return;
+
+      const id = 'r' + Date.now();
+
+      this.tempRep = {
+        id: id,
+        gens: [...this.sel],
+        ts: Date.now(),
+        v: this.items.map(() => ''),
+        d: '',
+        t1: '',
+        t2: '',
+        sum: '',
+        parts: '',
+        o1: '',
+        o2: '',
+        o3: '',
+        ca: '',
+        cn: '',
+        cd: ''
+      };
+
+      this.curId = id;
+      this.view = 'form';
+      window.scrollTo(0, 0);
+    },
+
+    open(id) {
+      const found = this.reports.find(r => r.id === id);
+
+      if (found) {
+        this.tempRep = JSON.parse(JSON.stringify(found));
+        this.curId = id;
+        this.view = 'form';
+        this.resetArm = false;
+        window.scrollTo(0, 0);
+      }
+    },
+
+    save() {
+      if (!this.tempRep) return;
+
+      if (!this.tempRep.d) {
+        alert('กรุณาระบุวันที่ให้บริการก่อนบันทึก');
+        return;
+      }
+
+      const idx = this.reports.findIndex(r => r.id === this.curId);
+
+      this.tempRep.ts = Date.now();
+
+      if (idx >= 0) {
+        this.reports.splice(
+          idx,
+          1,
+          JSON.parse(JSON.stringify(this.tempRep))
+        );
+      } else {
+        this.reports.push(JSON.parse(JSON.stringify(this.tempRep)));
+      }
+
+      this.view = 'home';
+      window.scrollTo(0, 0);
+    },
+
+    // ยืนยันการลบด้วย SweetAlert2
+    confirmRemove(r) {
+      Swal.fire({
+        title: 'ลบรายงานนี้?',
+        html: this.kvaText(r).join('<br>') +
+          '<br><small>แก้ไขล่าสุด ' +
+          new Date(r.ts).toLocaleString('th-TH') + '</small>',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ลบ',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#c0392b',
+        reverseButtons: true,
+        focusCancel: true
+      }).then(res => {
+        if (res.isConfirmed) {
+          this.remove(r.id);
+          Swal.fire({
+            title: 'ลบรายงานแล้ว',
+            icon: 'success',
+            timer: 1400,
+            showConfirmButton: false
+          });
+        }
+      });
+    },
+
+    remove(id) {
+      this.reports = this.reports.filter(r => r.id !== id);
+    },
+
+    print() {
+      window.print();
+    },
+
+    // ลิงก์ที่ฝังใน QR Code: เปิดหน้านี้พร้อมเลือกเครื่องนั้นให้เลย
+    getGenUrl(i) {
+      return window.location.href.split(/[?#]/)[0] + '?gen=' + i;
+    },
+
+    qrSrc(i) {
+      return 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='
+        + encodeURIComponent(this.getGenUrl(i));
+    },
+
+    resetData() {
+      if (!this.resetArm) {
+        this.resetArm = true;
+        setTimeout(() => {
+          this.resetArm = false;
+        }, 4000);
+        return;
+      }
+
+      Object.assign(this.tempRep, {
+        v: this.items.map(() => ''),
+        d: '',
+        t1: '',
+        t2: '',
+        sum: '',
+        parts: '',
+        o1: '',
+        o2: '',
+        o3: '',
+        ca: '',
+        cn: '',
+        cd: ''
+      });
+
+      this.resetArm = false;
+    }
+  }
+}).mount('#app');
+</script>
+
+</body>
+</html>
